@@ -1,11 +1,10 @@
-import json
-from flask import Flask, jsonify, Response
+from flask import Flask, jsonify
 from flask_restful import Resource, Api, reqparse
-
-from sqlalchemy import Column, ForeignKey, Integer, String
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+from model import Laboratory, Workstation
 
 app = Flask(__name__)
 api = Api(app)
@@ -13,16 +12,6 @@ api = Api(app)
 Base = declarative_base()
 engine = create_engine('sqlite:///workstation.db')
 
-class LaboratoryEntity(Base):
-	__tablename__ = 'laboratory'
-
-	id = Column(Integer, primary_key = True)
-	name = Column(String)
-	description = Column(String)
-	
-	def serialize(self):
-		return { 'id' : self.id, 'name' : self.name, 'description' : self.description }
-		
 Base.metadata.create_all(engine)
 
 Session = sessionmaker()
@@ -52,49 +41,71 @@ laboratory_db = [
 	}
 ]
 
-class LaboratoryList(Resource):
+class LaboratoryListResource(Resource):
 	def get(self): #ok
 		session = Session()
-		labs = session.query(LaboratoryEntity).all()		
+		labs = session.query(Laboratory).all()
 		return jsonify(laboratories = [l.serialize() for l in labs])		
 		
 	def post(self): #ok
 		session = Session()
 		parser = reqparse.RequestParser()
 		
-		parser.add_argument('id', type=int, required=True, location='json')
+		parser.add_argument('id', type=int, required=False, location='json')
 		parser.add_argument('name', type=str, required=True, location='json')
 		parser.add_argument('description', type=str, required=False, location='json')
 		
 		args = parser.parse_args(strict=True)
 		
-		laboratory = LaboratoryEntity(id = args['id'], name = args['name'], description = args['description'])
+		laboratory = Laboratory(id = args['id'], name = args['name'], description = args['description'])
 
 		session.add(laboratory)
 		session.commit()
 		
 		return laboratory.serialize()
 
-class Laboratory(Resource):
+class LaboratoryResource(Resource):
 	def get(self, lid): #ok
-		lab = [lab for lab in laboratory_db if (lab['id'] == lid)]
-		
-		if not lab:
+		session = Session()
+		laboratory = session.query(Laboratory).filter(Laboratory.id == lid).first()
+
+		if not laboratory:
 			return {'message' : 'No laboratory found.'}
 			
-		return lab[0]
+		return laboratory.serialize()
 		
-	def delete(self, lid):
-		del laboratory_db[lid]
-		return lab
+	def delete(self, lid): #ok
+		session = Session()
+		laboratory = session.query(Laboratory).filter(Laboratory.id == lid).first()
+
+		if not laboratory:
+			return {'message' : 'No laboratory found.'}
+
+		session.delete(laboratory)
+		session.commit()
+
+		return {'message': 'Success.'}
 	
-	def put(self, lid):
+	def put(self, lid): #ok
+		session = Session()
+		laboratory = session.query(Laboratory).filter(Laboratory.id == lid).first()
+
+		parser = reqparse.RequestParser()
+
+		parser.add_argument('name', type=str, required=True, location='json')
+		parser.add_argument('description', type=str, required=True, location='json')
+
 		args = parser.parse_args()
-		laboratory = {'name': args['name'], 'description': args['description']}
-		laboratory_db[lid] = laboratory
-		return laboratory, 201
+
+		laboratory.name = args['name']
+		laboratory.description = args['description']
+
+		session.add(laboratory)
+		session.commit()
+
+		return laboratory.serialize(), 201
 		
-class Workstation(Resource):
+class WorkstationResource(Resource):
 	def get(self, lid,  wid): #ok
 		lab = [lab for lab in laboratory_db if (lab['id'] == lid)]
 		
@@ -115,7 +126,7 @@ class Workstation(Resource):
 	def put(self):
 		pass
 		
-class WorkstationList(Resource):
+class WorkstationListResource(Resource):
 	def get(self, lid): #ok
 		lab = [lab for lab in laboratory_db if (lab['id'] == lid)]
 		
@@ -144,10 +155,10 @@ class WorkstationList(Resource):
 		return {"message" : "Sucess."}
 		
 
-api.add_resource(LaboratoryList, '/reservation/laboratory/')
-api.add_resource(Laboratory, '/reservation/laboratory/<lid>')
-api.add_resource(WorkstationList, '/reservation/laboratory/<lid>/workstation/')
-api.add_resource(Workstation, '/reservation/laboratory/<lid>/workstation/<wid>')
+api.add_resource(LaboratoryListResource, '/reservation/laboratory/')
+api.add_resource(LaboratoryResource, '/reservation/laboratory/<lid>')
+api.add_resource(WorkstationListResource, '/reservation/laboratory/<lid>/workstation/')
+api.add_resource(WorkstationResource, '/reservation/laboratory/<lid>/workstation/<wid>')
 
 if __name__ == '__main__':
 	app.run(debug = True)
