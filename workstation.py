@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import Flask, jsonify
 from flask_restful import Resource, Api, reqparse
 
@@ -5,7 +7,7 @@ from sqlalchemy import and_
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from model import Laboratory, Workstation, getBase
+from model import Laboratory, Workstation, Reservation, getBase
 
 app = Flask(__name__)
 api = Api(app)
@@ -154,12 +156,55 @@ class WorkstationListResource(Resource):
 		session.commit()
 
 		return {"message" : "Sucess."}
+
+
+class ReservationListResource(Resource):
+	def get(self, lid, wid):
+		session = Session()
+
+		reservations = session.query(Reservation).filter(Workstation.id == wid).all()
+
+		if not reservations:
+			return {'message': 'No reservation found.'}
+
+		return jsonify(reservations = [r.serialize() for r in reservations])
+
+	def post(self, lid, wid):
+		session = Session()
+
+		parser = reqparse.RequestParser()
+
+		parser.add_argument('begin', type=str, required=True, location='json')
+		parser.add_argument('end', type=str, required=True, location='json')
+
+		# TODO checar a existência dos parâmetros no JSON
+		args = parser.parse_args()
+
+		workstation = session.query(Workstation).filter(Workstation.id == wid).first()
+
+		if not workstation:
+			return {'message': 'No laboratory found.'}
+
+
+		dt_begin = datetime.strptime(args['begin'], '%a, %d %b %Y %I:%M:%S GMT')
+		dt_end = datetime.strptime(args['end'], '%a, %d %b %Y %I:%M:%S GMT')
+
+		reservation = Reservation(begin=dt_begin, end=dt_end)
+
+		# TODO checar se já não existe esta workstation
+		workstation.reservations.append(reservation)
+
+		session.add(workstation)
+		session.commit()
+
+		return {"message": "Sucess."}
 		
 
-api.add_resource(LaboratoryListResource, '/reservation/laboratory/')
-api.add_resource(LaboratoryResource, '/reservation/laboratory/<lid>')
-api.add_resource(WorkstationListResource, '/reservation/laboratory/<lid>/workstation/')
-api.add_resource(WorkstationResource, '/reservation/laboratory/<lid>/workstation/<wid>')
+api.add_resource(LaboratoryListResource, '/api/laboratory/')
+api.add_resource(LaboratoryResource, '/api/laboratory/<lid>')
+api.add_resource(WorkstationListResource, '/api/laboratory/<lid>/workstation/')
+api.add_resource(WorkstationResource, '/api/laboratory/<lid>/workstation/<wid>')
+api.add_resource(ReservationListResource, '/api/laboratory/<lid>/workstation/<wid>/reservation/')
 
 if __name__ == '__main__':
 	app.run(debug = True)
