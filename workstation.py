@@ -1,45 +1,21 @@
 from flask import Flask, jsonify
 from flask_restful import Resource, Api, reqparse
+
+from sqlalchemy import and_
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from model import Laboratory, Workstation
+from model import Laboratory, Workstation, getBase
 
 app = Flask(__name__)
 api = Api(app)
 
-Base = declarative_base()
 engine = create_engine('sqlite:///workstation.db')
 
-Base.metadata.create_all(engine)
+getBase().metadata.create_all(engine)
 
 Session = sessionmaker()
 Session.configure(bind = engine) 
-
-laboratory_db = [
-	{
-		'id' : '1',
-		'name' : 'Laboratório 03',
-		'description' : 'Laboratório destinado às práticas de circuitos elétrico e eletrônicos.',
-		'workstations' : [
-			{ 'id': '1', 'name' : 'Baia 1' },
-			{ 'id': '2', 'name' : 'Baia 2' },
-			{ 'id': '3', 'name' : 'Baia 3' }
-		]
-	},
-	{
-		'id' : '2',
-		'name' : 'Laboratório 04',
-		'description' : 'Laboratório destinado às práticas de projeto lógico digital e sistemas embarcados.',
-		'workstations' : [
-			{ 'id': '4', 'name' : 'Baia 1' },
-			{ 'id': '5', 'name' : 'Baia 2' },
-			{ 'id': '6', 'name' : 'Baia 3' },
-			{ 'id': '7', 'name' : 'Baia 4' },
-		]
-	}
-]
 
 class LaboratoryListResource(Resource):
 	def get(self): #ok
@@ -107,51 +83,76 @@ class LaboratoryResource(Resource):
 		
 class WorkstationResource(Resource):
 	def get(self, lid,  wid): #ok
-		lab = [lab for lab in laboratory_db if (lab['id'] == lid)]
-		
-		if not lab:
-			return {'message' : 'No laboratory found.'}
-			
-		workstations = lab[0]['workstations']
-		wst = [wst for wst in workstations if (wst['id'] == wid)]
-		
-		if not wst:
+		session = Session()
+		workstation = session.query(Workstation).filter(and_(Workstation.laboratory_id == lid, Workstation.id == wid)).first()
+
+		if not workstation:
 			return {'message' : 'No workstation found.'}
+
+		return workstation.serialize()
 		
-		return wst[0]
-		
-	def delete(self):
-		pass
-		
-	def put(self):
-		pass
+	def delete(self, lid, wid): #ok
+		session = Session()
+		workstation = session.query(Workstation).filter(and_(Workstation.laboratory_id == lid, Workstation.id == wid)).first()
+
+		if not workstation:
+			return {'message' : 'No workstation found.'}
+
+		session.delete(workstation)
+		session.commit()
+
+		return {'message': 'Success.'}
+
+	def put(self, lid, wid): #ok
+		session = Session()
+		workstation = session.query(Workstation).filter(and_(Workstation.laboratory_id == lid, Workstation.id == wid)).first()
+
+		parser = reqparse.RequestParser()
+
+		parser.add_argument('name', type=str, required=True, location='json')
+
+		args = parser.parse_args()
+
+		workstation.name = args['name']
+
+		session.add(workstation)
+		session.commit()
+
+		return workstation.serialize(), 201
 		
 class WorkstationListResource(Resource):
 	def get(self, lid): #ok
-		lab = [lab for lab in laboratory_db if (lab['id'] == lid)]
+		session = Session()
+
+		workstations = session.query(Workstation).filter(Workstation.laboratory_id == lid).all()
 		
-		if not lab:
-			return {'message' : 'No laboratory found.'}
+		if not workstations:
+			return {'message' : 'No workstations found.'}
 		
-		return lab[0]['workstations']
+		return jsonify(workstations = [l.serialize() for l in workstations])
 		
 	def post(self, lid): #ok
-		lab = [lab for lab in laboratory_db if (lab['id'] == lid)]
-		
-		if not lab:
-			return {'message' : 'No laboratory found.'}
-		
+		session = Session()
 		parser = reqparse.RequestParser()
-		parser.add_argument('name', type=str, required=True, location='json')
-		args = parser.parse_args(strict=True)
-		
-		workstation = {'name': args['name']}
-		
-		if workstation in lab[0]['workstations']:
-			return {}
 
-		lab[0]['workstations'].append(workstation)
-		
+		parser.add_argument('name', type=str, required=True, location='json')
+
+		# TODO checar a existência dos parâmetros no JSON
+		args = parser.parse_args()
+
+		laboratory = session.query(Laboratory).filter(Laboratory.id == lid).first()
+
+		if not laboratory:
+			return {'message' : 'No laboratory found.'}
+
+		workstation =  Workstation(name = args['name'])
+
+		# TODO checar se já não existe esta workstation
+		laboratory.workstations.append(workstation)
+
+		session.add(laboratory)
+		session.commit()
+
 		return {"message" : "Sucess."}
 		
 
