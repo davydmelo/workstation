@@ -33,10 +33,9 @@ class VendorListResource(Resource):
 
 	def post(self):  # ok
 		session = Session()
+
 		parser = reqparse.RequestParser()
-
 		parser.add_argument('name', type=str, required=True, location='json')
-
 		args = parser.parse_args(strict=True)
 
 		vendor = Vendor(name=args['name'])
@@ -70,12 +69,14 @@ class VendorResource(Resource):
 
 	def put(self, vid):
 		session = Session()
+
 		vendor = session.query(Vendor).filter(Vendor.id == vid).first()
 
+		if not vendor:
+			return {'message': 'No vendor found.'}
+
 		parser = reqparse.RequestParser()
-
 		parser.add_argument('name', type=str, required=True, location='json')
-
 		args = parser.parse_args()
 
 		vendor.name = args['name']
@@ -97,12 +98,11 @@ class LaboratoryListResource(Resource):
 		
 	def post(self): #ok
 		session = Session()
+
 		parser = reqparse.RequestParser()
-		
 		parser.add_argument('id', type=int, required=False, location='json')
 		parser.add_argument('name', type=str, required=True, location='json')
 		parser.add_argument('description', type=str, required=False, location='json')
-		
 		args = parser.parse_args(strict=True)
 		
 		laboratory = Laboratory(id = args['id'], name = args['name'], description = args['description'])
@@ -139,10 +139,8 @@ class LaboratoryResource(Resource):
 		laboratory = session.query(Laboratory).filter(Laboratory.id == lid).first()
 
 		parser = reqparse.RequestParser()
-
 		parser.add_argument('name', type=str, required=True, location='json')
 		parser.add_argument('description', type=str, required=True, location='json')
-
 		args = parser.parse_args()
 
 		laboratory.name = args['name']
@@ -184,9 +182,7 @@ class WorkstationResource(Resource):
 		workstation = session.query(Workstation).filter(and_(Workstation.laboratory_id == lid, Workstation.id == wid)).first()
 
 		parser = reqparse.RequestParser()
-
 		parser.add_argument('name', type=str, required=True, location='json')
-
 		args = parser.parse_args()
 
 		workstation.name = args['name']
@@ -210,11 +206,10 @@ class WorkstationListResource(Resource):
 		
 	def post(self, lid): #ok
 		session = Session()
+
+		# Checar a existência dos parâmetros do JSON
 		parser = reqparse.RequestParser()
-
 		parser.add_argument('name', type=str, required=True, location='json')
-
-		# TODO checar a existência dos parâmetros no JSON
 		args = parser.parse_args()
 
 		laboratory = session.query(Laboratory).filter(Laboratory.id == lid).first()
@@ -263,10 +258,8 @@ class ReservationResource(Resource):
 		reservation = session.query(Reservation).filter(Reservation.id == rid).first()
 
 		parser = reqparse.RequestParser()
-
 		parser.add_argument('begin', type=str, required=True, location='json')
 		parser.add_argument('end', type=str, required=True, location='json')
-
 		args = parser.parse_args()
 
 		reservation.begin = datetime.strptime(args['begin'], '%a, %d %b %Y %I:%M:%S GMT')
@@ -291,12 +284,10 @@ class ReservationListResource(Resource):
 	def post(self, lid, wid): #ok
 		session = Session()
 
+		# TODO checar a existência dos parâmetros no JSON
 		parser = reqparse.RequestParser()
-
 		parser.add_argument('begin', type=str, required=True, location='json')
 		parser.add_argument('end', type=str, required=True, location='json')
-
-		# TODO checar a existência dos parâmetros no JSON
 		args = parser.parse_args()
 
 		workstation = session.query(Workstation).filter(Workstation.id == wid).first()
