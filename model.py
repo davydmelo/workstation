@@ -25,6 +25,9 @@ class Vendor(Base):
     name = Column(String)
     materials = relationship("Material", back_populates="vendor")
 
+    def serialize(self):
+        return {"id": self.id, "name": self.name, "materials": [m.serialize() for m in self.materials]}
+
 class Material(Base):
 
     __tablename__ = 'material'
@@ -52,7 +55,7 @@ class Reservation(Base):
     workstation = relationship("Workstation", back_populates="reservations")
 
     def serialize(self):
-        return {"id": self.id, "begin": self.begin, "end": self.end}
+        return {"id": self.id, "begin": self.begin.isoformat(), "end": self.end.isoformat()}
 
 
 class Workstation(Base):
