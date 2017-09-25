@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -23,25 +23,27 @@ class Vendor(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    materials = relationship("Material", back_populates="vendor")
+    assets = relationship("Asset", back_populates="vendor")
 
     def serialize(self):
-        return {"id": self.id, "name": self.name, "materials": [m.serialize() for m in self.materials]}
+        return {"id": self.id, "name": self.name}
 
-class Material(Base):
+class Asset(Base):
 
-    __tablename__ = 'material'
+    __tablename__ = 'asset'
 
     id = Column(Integer, primary_key=True)
     code = Column(Integer)
     name = Column(String)
     model = Column(String)
+    status = Column(Enum('new','good','old','defect'))
+    description = Column(String)
 
     vendor_id = Column(Integer, ForeignKey('vendor.id'))
-    vendor = relationship("Vendor", back_populates="materials")
+    vendor = relationship("Vendor", back_populates="assets")
 
-    def is_username_valid(self):
-        return len(self.username) >= 6
+    def serialize(self):
+        return {"id": self.id, "name": self.name, "vendor" : self.vendor.serialize() }
 
 class Reservation(Base):
 

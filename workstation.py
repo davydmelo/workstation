@@ -7,7 +7,11 @@ from sqlalchemy import and_
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from model import Laboratory, Workstation, Reservation, Vendor, getBase
+from flask_restful.utils import cors
+
+from flask_cors import CORS
+
+from model import Laboratory, Workstation, Reservation, Vendor, Asset, getBase
 
 app = Flask(__name__)
 api = Api(app)
@@ -22,10 +26,76 @@ Session.configure(bind = engine)
 #TODO Retirar leitura do parâmetro ID dentro dos POSTs
 
 ############################################################################################################
+# ASSET ####################################################################################################
+############################################################################################################
+
+class AssetListResource(Resource):
+	def get(self):
+		session = Session()
+		assets = session.query(Asset).all()
+		return jsonify(assets=[a.serialize() for a in assets])
+
+	def post(self):  # ok
+		session = Session()
+
+		parser = reqparse.RequestParser()
+		parser.add_argument('name', type=str, required=True, location='json')
+		args = parser.parse_args(strict=True)
+
+		asset = Asset(name=args['name'])
+
+		session.add(asset)
+		session.commit()
+
+		return asset.serialize()
+
+class AssetResource(Resource):
+	def get(self, aid):
+		session = Session()
+		asset = session.query(Asset).filter(Asset.id == aid).first()
+
+		if not asset:
+			return {'message': 'No asset found.'}
+
+		return asset.serialize()
+
+	def delete(self, aid):
+		session = Session()
+		asset = session.query(Asset).filter(Asset.id == aid).first()
+
+		if not asset:
+			return {'message': 'No asset found.'}
+
+		session.delete(asset)
+		session.commit()
+
+		return {'message': 'Success.'}
+
+	def put(self, aid):
+		session = Session()
+
+		asset = session.query(Asset).filter(Asset.id == aid).first()
+
+		if not asset:
+			return {'message': 'No asset found.'}
+
+		parser = reqparse.RequestParser()
+		parser.add_argument('name', type=str, required=True, location='json')
+		args = parser.parse_args()
+
+		asset.name = args['name']
+
+		session.add(asset)
+		session.commit()
+
+		return asset.serialize(), 201
+
+############################################################################################################
 # VENDOR ###################################################################################################
 ############################################################################################################
 
 class VendorListResource(Resource):
+	@cors.crossdomain(origin='*')
 	def get(self):
 		session = Session()
 		vendors = session.query(Vendor).all()
@@ -94,8 +164,8 @@ class LaboratoryListResource(Resource):
 	def get(self): #ok
 		session = Session()
 		labs = session.query(Laboratory).all()
-		return jsonify(laboratories = [l.serialize() for l in labs])		
-		
+		return jsonify(laboratories = [l.serialize() for l in labs])
+
 	def post(self): #ok
 		session = Session()
 
@@ -104,12 +174,12 @@ class LaboratoryListResource(Resource):
 		parser.add_argument('name', type=str, required=True, location='json')
 		parser.add_argument('description', type=str, required=False, location='json')
 		args = parser.parse_args(strict=True)
-		
+
 		laboratory = Laboratory(id = args['id'], name = args['name'], description = args['description'])
 
 		session.add(laboratory)
 		session.commit()
-		
+
 		return laboratory.serialize()
 
 class LaboratoryResource(Resource):
@@ -119,9 +189,9 @@ class LaboratoryResource(Resource):
 
 		if not laboratory:
 			return {'message' : 'No laboratory found.'}
-			
+
 		return laboratory.serialize()
-		
+
 	def delete(self, lid): #ok
 		session = Session()
 		laboratory = session.query(Laboratory).filter(Laboratory.id == lid).first()
@@ -133,7 +203,7 @@ class LaboratoryResource(Resource):
 		session.commit()
 
 		return {'message': 'Success.'}
-	
+
 	def put(self, lid): #ok
 		session = Session()
 		laboratory = session.query(Laboratory).filter(Laboratory.id == lid).first()
@@ -154,7 +224,7 @@ class LaboratoryResource(Resource):
 ############################################################################################################
 # WORKSTATION ##############################################################################################
 ############################################################################################################
-		
+
 class WorkstationResource(Resource):
 	def get(self, lid,  wid): #ok
 		session = Session()
@@ -164,7 +234,7 @@ class WorkstationResource(Resource):
 			return {'message' : 'No workstation found.'}
 
 		return workstation.serialize()
-		
+
 	def delete(self, lid, wid): #ok
 		session = Session()
 		workstation = session.query(Workstation).filter(and_(Workstation.laboratory_id == lid, Workstation.id == wid)).first()
@@ -198,12 +268,12 @@ class WorkstationListResource(Resource):
 		session = Session()
 
 		workstations = session.query(Workstation).filter(Workstation.laboratory_id == lid).all()
-		
+
 		if not workstations:
 			return {'message' : 'No workstations found.'}
-		
+
 		return jsonify(workstations = [l.serialize() for l in workstations])
-		
+
 	def post(self, lid): #ok
 		session = Session()
 
@@ -307,16 +377,22 @@ class ReservationListResource(Resource):
 		session.commit()
 
 		return {"message": "Sucess."}
-		
+
 
 api.add_resource(LaboratoryListResource, '/api/laboratory/')
 api.add_resource(LaboratoryResource, '/api/laboratory/<lid>')
+
 api.add_resource(WorkstationListResource, '/api/laboratory/<lid>/workstation/')
 api.add_resource(WorkstationResource, '/api/laboratory/<lid>/workstation/<wid>')
+
 api.add_resource(ReservationListResource, '/api/laboratory/<lid>/workstation/<wid>/reservation/')
 api.add_resource(ReservationResource, '/api/laboratory/<lid>/workstation/<wid>/reservation/<rid>')
+
 api.add_resource(VendorListResource, '/api/vendor/')
 api.add_resource(VendorResource, '/api/vendor/<vid>')
+
+api.add_resource(AssetListResource, '/api/asset/')
+api.add_resource(AssetResource, '/api/asset/<aid>')
 
 
 if __name__ == '__main__':
